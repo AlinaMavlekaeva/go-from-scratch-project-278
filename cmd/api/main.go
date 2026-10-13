@@ -6,13 +6,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	engine := gin.Default()
-
-	engine.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
+func setupRouter() *gin.Engine {
+	router := gin.Default()
+	router.GET("/ping", func(c *gin.Context) {
+		c.String(http.StatusOK, "pong")
 	})
-	engine.Run(":8080")
+	return router
+}
+
+func main() {
+	router := setupRouter()
+	router.Run(":8080")
 }
