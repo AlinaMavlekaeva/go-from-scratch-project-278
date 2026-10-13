@@ -2,6 +2,8 @@
 
 [![hexlet-check](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions)
 
+[![Check project](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions/workflows/my-workflow.yml/badge.svg)](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions/workflows/my-workflow.yml)
+
 Спроектируйте приложение для удобных ссылок
 
 Учебный проект Хекслета: https://ru.hexlet.io/programs/go-from-scratch
