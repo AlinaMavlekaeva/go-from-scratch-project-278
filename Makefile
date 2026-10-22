@@ -5,4 +5,4 @@ lint:
 lint-fix:
 	golangci-lint run --fix
 tests:
-	go test cmd/api -cover
+	go test . -cover
