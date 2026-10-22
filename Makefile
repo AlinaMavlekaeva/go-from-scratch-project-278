@@ -1,5 +1,5 @@
 build:
-	go build -o bin/app ./cmd/api
+	go build -o bin/app .
 lint:
 	golangci-lint run
 lint-fix:
