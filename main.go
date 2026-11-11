@@ -1,18 +1,18 @@
 package main
 
 import (
-	"net/http"
-	"fmt"
-	"os"
-	"database/sql"
 	"context"
+	"database/sql"
+	"fmt"
+	"net/http"
+	"os"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
-	"github.com/joho/godotenv"
+	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 )
 
 func setupRouter(conn *sql.DB) *gin.Engine {
@@ -27,7 +27,7 @@ func setupRouter(conn *sql.DB) *gin.Engine {
 }
 
 func main() {
-	err := godotenv.Load() 
+	err := godotenv.Load()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Printf(".env load error: %v\n", err)
@@ -44,7 +44,11 @@ func main() {
 		fmt.Printf("database initialization error: %v\n", err)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			fmt.Printf("database close err: %v\n", err)
+		}
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -55,8 +59,8 @@ func main() {
 	fmt.Println("Database connection established")
 	err = sentry.Init(sentry.ClientOptions{})
 	if err != nil {
-	 fmt.Printf("sentry init error: %v\n", err)
-	 return
+		fmt.Printf("sentry init error: %v\n", err)
+		return
 	}
 	router := setupRouter(conn)
 	err = router.Run(":8080")

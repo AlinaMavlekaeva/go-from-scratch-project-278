@@ -16,7 +16,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestPingRoute(t *testing.T) {
-	router := setupRouter()
+	router := setupRouter(nil)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/ping", nil)
 	router.ServeHTTP(w, req)
