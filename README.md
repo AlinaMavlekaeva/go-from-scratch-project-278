@@ -4,6 +4,10 @@
 
 [![Check project](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions/workflows/my-workflow.yml/badge.svg)](https://github.com/AlinaMavlekaeva/go-from-scratch-project-278/actions/workflows/my-workflow.yml)
 
+
+https://links-app-ntc9.onrender.com/ping
+
+
 Спроектируйте приложение для удобных ссылок
 
 Учебный проект Хекслета: https://ru.hexlet.io/programs/go-from-scratch
