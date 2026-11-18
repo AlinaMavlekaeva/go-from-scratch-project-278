@@ -1,6 +1,7 @@
 package main
 
 import (
+	"code/internal/handlers"
 	"context"
 	"database/sql"
 	"fmt"
@@ -23,6 +24,13 @@ func setupRouter(conn *sql.DB) *gin.Engine {
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
+	h := handlers.New(conn)
+	router.GET("/api/links", h.GetLinks)
+	router.POST("/api/links", h.CreateLink)
+	router.GET("/api/links/:id", h.GetLinkByID)
+	router.PUT("/api/links/:id", h.UpdateLinkByID)
+	router.DELETE("/api/links/:id", h.DeleteLink)
+
 	return router
 }
 

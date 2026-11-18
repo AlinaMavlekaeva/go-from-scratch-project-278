@@ -63,13 +63,13 @@ func generateShortURL(shortName string) (string, error) {
 	return shortURL, nil
 }
 
-func GetLinks(ctx context.Context, conn *sql.DB) ([]db.GetLinksRow, error) {
+func GetLinks(ctx context.Context, conn db.DBTX) ([]db.GetLinksRow, error) {
 	q := db.New(conn)
 	links, err := q.GetLinks(ctx)
 	return links, err
 }
 
-func CreateLink(ctx context.Context, conn *sql.DB, params CreateLinkParams) (db.CreateLinkRow, error) {
+func CreateLink(ctx context.Context, conn db.DBTX, params CreateLinkParams) (db.CreateLinkRow, error) {
 	if err := validateURL(params.OriginalUrl); err != nil {
 		return db.CreateLinkRow{}, fmt.Errorf("create link error: %w", errors.Join(ErrValidate, err))
 	}
@@ -89,7 +89,7 @@ func CreateLink(ctx context.Context, conn *sql.DB, params CreateLinkParams) (db.
 	return link, err
 }
 
-func UpdateLinkByID(ctx context.Context, conn *sql.DB, params UpdateLinkParams) (db.UpdateLinkByIDRow, error) {
+func UpdateLinkByID(ctx context.Context, conn db.DBTX, params UpdateLinkParams) (db.UpdateLinkByIDRow, error) {
 	if params.ID <= 0 {
 		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", errors.Join(ErrValidate, ErrInvalidID))
 	}
@@ -117,7 +117,7 @@ func UpdateLinkByID(ctx context.Context, conn *sql.DB, params UpdateLinkParams) 
 	return link, nil
 }
 
-func GetLinkByID(ctx context.Context, conn *sql.DB, id int64) (db.GetLinkByIDRow, error) {
+func GetLinkByID(ctx context.Context, conn db.DBTX, id int64) (db.GetLinkByIDRow, error) {
 	if id <= 0 {
 		return db.GetLinkByIDRow{}, fmt.Errorf("get link error: %w", ErrInvalidID)
 	}
@@ -132,7 +132,7 @@ func GetLinkByID(ctx context.Context, conn *sql.DB, id int64) (db.GetLinkByIDRow
 	return link, nil
 }
 
-func DeleteLink(ctx context.Context, conn *sql.DB, id int64) error {
+func DeleteLink(ctx context.Context, conn db.DBTX, id int64) error {
 	if id <= 0 {
 		return fmt.Errorf("delete link error: %w", ErrInvalidID)
 	}
