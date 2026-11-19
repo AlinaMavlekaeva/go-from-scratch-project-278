@@ -9,10 +9,12 @@ import (
 )
 
 type Querier interface {
+	CountLinks(ctx context.Context) (int64, error)
 	CreateLink(ctx context.Context, arg CreateLinkParams) (CreateLinkRow, error)
 	DeleteLink(ctx context.Context, id int64) error
 	GetLinkByID(ctx context.Context, id int64) (GetLinkByIDRow, error)
 	GetLinks(ctx context.Context) ([]GetLinksRow, error)
+	GetLinksPage(ctx context.Context, arg GetLinksPageParams) ([]GetLinksPageRow, error)
 	UpdateLinkByID(ctx context.Context, arg UpdateLinkByIDParams) (UpdateLinkByIDRow, error)
 }
 

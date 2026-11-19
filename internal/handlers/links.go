@@ -3,6 +3,7 @@ package handlers
 import (
 	"code/internal/links"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -119,6 +120,38 @@ func (h *LinkHandler) GetLinkByID(c *gin.Context) {
 func (h *LinkHandler) GetLinks(c *gin.Context) {
 	conn := h.DB
 	ctx := c.Request.Context()
+	rawRange, ok := c.GetQuery("range")
+	if ok {
+		var bounds []int
+		if err := json.Unmarshal([]byte(rawRange), &bounds); err != nil {
+			fmt.Println(err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if len(bounds) != 2 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "range must contain 2 elements"})
+			return
+		}
+		if bounds[0] < 0 || bounds[1] <= bounds[0] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid range"})
+			return
+		}
+		offset := bounds[0]
+		limit := bounds[1] - bounds[0]
+		rows, count, err := links.GetLinksPage(ctx, conn, limit, offset)
+		if err != nil {
+			fmt.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+			return
+		}
+		var response = make([]LinkResponse, len(rows))
+		for i, row := range rows {
+			response[i] = LinkResponse(row)
+		}
+		c.Header("Content-Range", fmt.Sprintf("links %d-%d/%d", bounds[0], bounds[1], count))
+		c.JSON(http.StatusOK, response)
+		return
+	}
 	rows, err := links.GetLinks(ctx, conn)
 	if err != nil {
 		fmt.Println(err)

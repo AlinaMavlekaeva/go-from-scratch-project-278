@@ -3,8 +3,19 @@ SELECT id,
 original_url,
 short_name, 
 short_url
-FROM links
+FROM links 
 ORDER BY created_at DESC;
+
+-- name: GetLinksPage :many
+SELECT id, 
+original_url,
+short_name, 
+short_url
+FROM links 
+ORDER BY created_at DESC LIMIT $2 OFFSET $1;
+
+-- name: CountLinks :one
+SELECT COUNT (*) FROM links;
 
 -- name: CreateLink :one
 INSERT INTO links (original_url, short_name, short_url) 

@@ -110,6 +110,17 @@ func WithTx(t *testing.T, conn *sql.DB, fn func(ctx context.Context, q *Queries,
 	fn(ctx, qtx, tx)
 }
 
+func insertTestLinks(t *testing.T, ctx context.Context, tx *sql.Tx, inputs ...link) {
+	t.Helper()
+	for _, input := range inputs {
+		_, err := tx.ExecContext(ctx, `INSERT INTO links(original_url, short_name, short_url, created_at)
+		VALUES ($1, $2, $3, $4)`, input.OriginalUrl, input.ShortName, input.ShortUrl, input.CreatedAt)
+		if err != nil {
+			t.Fatalf("insert link error: %v\n", err)
+		}
+	}
+}
+
 func TestGetLinks(t *testing.T) {
 	WithTx(t, conn, func(ctx context.Context, q *Queries, tx *sql.Tx) {
 		empty, err := q.GetLinks(ctx)
@@ -150,6 +161,53 @@ func TestGetLinks(t *testing.T) {
 		assert.Equal(t, input2.OriginalUrl, links[0].OriginalUrl)
 		assert.Equal(t, input2.ShortName, links[0].ShortName)
 		assert.Equal(t, input2.ShortUrl, links[0].ShortUrl)
+	})
+}
+
+func TestGetLinksPage(t *testing.T) {
+	WithTx(t, conn, func(ctx context.Context, q *Queries, tx *sql.Tx) {
+		inputs := []link{
+			{
+				OriginalUrl: "https://example.org/guides/postgresql",
+				ShortName:   "pg-guide",
+				ShortUrl:    "http://localhost:8080/pg-guide",
+				CreatedAt:   time.Date(2026, time.November, 3, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				OriginalUrl: "https://example.net/docs/gin-routing",
+				ShortName:   "gin-routes",
+				ShortUrl:    "http://localhost:8080/gin-routes",
+				CreatedAt:   time.Date(2026, time.November, 2, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				OriginalUrl: "https://example.com/articles/go-testing",
+				ShortName:   "go-tests",
+				ShortUrl:    "http://localhost:8080/go-tests",
+				CreatedAt:   time.Date(2026, time.November, 1, 10, 0, 0, 0, time.UTC),
+			},
+		}
+		insertTestLinks(t, ctx, tx, inputs...)
+		cases := []struct {
+			name          string
+			offset, limit int32
+			want          []link
+		}{
+			{"[0,2]", 0, 2, []link{inputs[0], inputs[1]}},
+			{"[1,2]", 1, 1, []link{inputs[1]}},
+			{"[2,4]", 2, 2, []link{inputs[2]}},
+			{"[3,5]", 3, 2, []link{}},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				links, err := q.GetLinksPage(ctx, GetLinksPageParams{Offset: c.offset, Limit: c.limit})
+				require.NoError(t, err)
+				require.Len(t, links, len(c.want))
+				for i := range links {
+					assert.Equal(t, c.want[i].ShortName, links[i].ShortName)
+				}
+			})
+
+		}
 	})
 }
 

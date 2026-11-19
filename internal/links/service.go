@@ -69,6 +69,16 @@ func GetLinks(ctx context.Context, conn db.DBTX) ([]db.GetLinksRow, error) {
 	return links, err
 }
 
+func GetLinksPage(ctx context.Context, conn db.DBTX, limit int, offset int) ([]db.GetLinksPageRow, int64, error) {
+	q := db.New(conn)
+	links, err := q.GetLinksPage(ctx, db.GetLinksPageParams{Offset: int32(offset), Limit: int32(limit)})
+	if err != nil {
+		return []db.GetLinksPageRow{}, 0, err
+	}
+	count, err := q.CountLinks(ctx)
+	return links, count, err
+}
+
 func CreateLink(ctx context.Context, conn db.DBTX, params CreateLinkParams) (db.CreateLinkRow, error) {
 	if err := validateURL(params.OriginalUrl); err != nil {
 		return db.CreateLinkRow{}, fmt.Errorf("create link error: %w", errors.Join(ErrValidate, err))

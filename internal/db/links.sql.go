@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const countLinks = `-- name: CountLinks :one
+SELECT COUNT (*) FROM links
+`
+
+func (q *Queries) CountLinks(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLinks)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createLink = `-- name: CreateLink :one
 INSERT INTO links (original_url, short_name, short_url) 
 VALUES ($1, $2, $3) 
@@ -78,7 +89,7 @@ SELECT id,
 original_url,
 short_name, 
 short_url
-FROM links
+FROM links 
 ORDER BY created_at DESC
 `
 
@@ -98,6 +109,55 @@ func (q *Queries) GetLinks(ctx context.Context) ([]GetLinksRow, error) {
 	var items []GetLinksRow
 	for rows.Next() {
 		var i GetLinksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OriginalUrl,
+			&i.ShortName,
+			&i.ShortUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLinksPage = `-- name: GetLinksPage :many
+SELECT id, 
+original_url,
+short_name, 
+short_url
+FROM links 
+ORDER BY created_at DESC LIMIT $2 OFFSET $1
+`
+
+type GetLinksPageParams struct {
+	Offset int32
+	Limit  int32
+}
+
+type GetLinksPageRow struct {
+	ID          int64
+	OriginalUrl string
+	ShortName   string
+	ShortUrl    string
+}
+
+func (q *Queries) GetLinksPage(ctx context.Context, arg GetLinksPageParams) ([]GetLinksPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLinksPage, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLinksPageRow
+	for rows.Next() {
+		var i GetLinksPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OriginalUrl,
