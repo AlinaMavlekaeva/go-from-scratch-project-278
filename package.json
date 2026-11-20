@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@hexlet/project-url-shortener-frontend": "^1.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  },
+  "scripts": {
+    "dev": "concurrently \"go run .\" \"npx start-hexlet-url-shortener-frontend\""
+  }
+}

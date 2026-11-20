@@ -11,6 +11,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	sentrygin "github.com/getsentry/sentry-go/gin"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
@@ -21,6 +22,14 @@ func setupRouter(conn *sql.DB) *gin.Engine {
 	router.Use(sentrygin.New(sentrygin.Options{
 		Repanic: true,
 	}))
+	origin := os.Getenv("CORS_ALLOWED_ORIGIN")
+	if origin != "" {
+		config := cors.DefaultConfig()
+		config.AllowOrigins = []string{origin}
+		config.ExposeHeaders = []string{"Content-Range"}
+		config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
+		router.Use(cors.New(config))
+	}
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
