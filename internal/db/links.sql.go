@@ -7,7 +7,20 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 )
+
+const countLinkVisits = `-- name: CountLinkVisits :one
+SELECT COUNT (*) FROM link_visits
+`
+
+func (q *Queries) CountLinkVisits(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLinkVisits)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const countLinks = `-- name: CountLinks :one
 SELECT COUNT (*) FROM links
@@ -51,6 +64,51 @@ func (q *Queries) CreateLink(ctx context.Context, arg CreateLinkParams) (CreateL
 	return i, err
 }
 
+const createLinkVisit = `-- name: CreateLinkVisit :one
+INSERT INTO link_visits (link_id,
+ip,
+user_agent,
+referer,
+status) 
+VALUES ($1, $2, $3, $4, $5) 
+RETURNING id, link_id, ip, user_agent, status
+`
+
+type CreateLinkVisitParams struct {
+	LinkID    int64
+	Ip        string
+	UserAgent string
+	Referer   sql.NullString
+	Status    int32
+}
+
+type CreateLinkVisitRow struct {
+	ID        int64
+	LinkID    int64
+	Ip        string
+	UserAgent string
+	Status    int32
+}
+
+func (q *Queries) CreateLinkVisit(ctx context.Context, arg CreateLinkVisitParams) (CreateLinkVisitRow, error) {
+	row := q.db.QueryRowContext(ctx, createLinkVisit,
+		arg.LinkID,
+		arg.Ip,
+		arg.UserAgent,
+		arg.Referer,
+		arg.Status,
+	)
+	var i CreateLinkVisitRow
+	err := row.Scan(
+		&i.ID,
+		&i.LinkID,
+		&i.Ip,
+		&i.UserAgent,
+		&i.Status,
+	)
+	return i, err
+}
+
 const deleteLink = `-- name: DeleteLink :exec
 DELETE FROM links WHERE id = $1
 `
@@ -82,6 +140,135 @@ func (q *Queries) GetLinkByID(ctx context.Context, id int64) (GetLinkByIDRow, er
 		&i.ShortUrl,
 	)
 	return i, err
+}
+
+const getLinkByShortName = `-- name: GetLinkByShortName :one
+SELECT id, original_url, short_name, short_url
+FROM links WHERE short_name = $1
+`
+
+type GetLinkByShortNameRow struct {
+	ID          int64
+	OriginalUrl string
+	ShortName   string
+	ShortUrl    string
+}
+
+func (q *Queries) GetLinkByShortName(ctx context.Context, shortName string) (GetLinkByShortNameRow, error) {
+	row := q.db.QueryRowContext(ctx, getLinkByShortName, shortName)
+	var i GetLinkByShortNameRow
+	err := row.Scan(
+		&i.ID,
+		&i.OriginalUrl,
+		&i.ShortName,
+		&i.ShortUrl,
+	)
+	return i, err
+}
+
+const getLinkVisits = `-- name: GetLinkVisits :many
+SELECT id, 
+link_id,
+created_at, 
+ip,
+user_agent,
+status
+FROM link_visits
+ORDER BY created_at DESC
+`
+
+type GetLinkVisitsRow struct {
+	ID        int64
+	LinkID    int64
+	CreatedAt time.Time
+	Ip        string
+	UserAgent string
+	Status    int32
+}
+
+func (q *Queries) GetLinkVisits(ctx context.Context) ([]GetLinkVisitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLinkVisits)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLinkVisitsRow
+	for rows.Next() {
+		var i GetLinkVisitsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LinkID,
+			&i.CreatedAt,
+			&i.Ip,
+			&i.UserAgent,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLinkVisitsPage = `-- name: GetLinkVisitsPage :many
+SELECT id, 
+link_id,
+created_at, 
+ip,
+user_agent,
+status
+FROM link_visits 
+ORDER BY created_at DESC LIMIT $2 OFFSET $1
+`
+
+type GetLinkVisitsPageParams struct {
+	Offset int32
+	Limit  int32
+}
+
+type GetLinkVisitsPageRow struct {
+	ID        int64
+	LinkID    int64
+	CreatedAt time.Time
+	Ip        string
+	UserAgent string
+	Status    int32
+}
+
+func (q *Queries) GetLinkVisitsPage(ctx context.Context, arg GetLinkVisitsPageParams) ([]GetLinkVisitsPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, getLinkVisitsPage, arg.Offset, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLinkVisitsPageRow
+	for rows.Next() {
+		var i GetLinkVisitsPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.LinkID,
+			&i.CreatedAt,
+			&i.Ip,
+			&i.UserAgent,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLinks = `-- name: GetLinks :many

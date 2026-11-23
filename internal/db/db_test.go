@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -27,6 +28,15 @@ type link struct {
 	ShortName   string
 	ShortUrl    string
 	CreatedAt   time.Time
+}
+
+type linkVisit struct {
+	LinkID    int64
+	Ip        string
+	UserAgent string
+	Referer   sql.NullString
+	Status    int32
+	CreatedAt time.Time
 }
 
 func TestMain(m *testing.M) {
@@ -309,5 +319,74 @@ func TestDeleteLink(t *testing.T) {
 		}
 		err = tx.QueryRowContext(ctx, `SELECT id FROM links WHERE id = $1`, id).Scan(&id)
 		assert.ErrorIs(t, err, sql.ErrNoRows)
+	})
+}
+
+func TestGetLinkVisitsPage(t *testing.T) {
+	WithTx(t, conn, func(ctx context.Context, q *Queries, tx *sql.Tx) {
+		linkInput := link{
+			OriginalUrl: "https://example.org/guides/testing-redirects",
+			ShortName:   "redirect-guide",
+			ShortUrl:    "http://localhost:8080/r/redirect-guide",
+		}
+		var linkId int64
+		const status = http.StatusFound
+		err := tx.QueryRowContext(ctx, `INSERT INTO links (original_url, short_name, short_url) VALUES ($1, $2, $3) RETURNING id`, linkInput.OriginalUrl, linkInput.ShortName, linkInput.ShortUrl).Scan(&linkId)
+		if err != nil {
+			t.Fatalf("insert link error: %v\n", err)
+		}
+		visitInputs := []linkVisit{
+			{
+				LinkID:    linkId,
+				Ip:        "192.0.2.11",
+				UserAgent: "curl/8.5.0",
+				Referer:   sql.NullString{},
+				Status:    status,
+				CreatedAt: time.Date(2026, time.November, 20, 10, 0, 0, 0, time.UTC),
+			},
+			{
+				LinkID:    linkId,
+				Ip:        "192.0.2.12",
+				UserAgent: "Mozilla/5.0",
+				Referer:   sql.NullString{String: "https://example.org/articles", Valid: true},
+				Status:    status,
+				CreatedAt: time.Date(2026, time.November, 20, 11, 0, 0, 0, time.UTC),
+			},
+			{
+				LinkID:    linkId,
+				Ip:        "192.0.2.13",
+				UserAgent: "Wget/1.21.4",
+				Referer:   sql.NullString{String: "https://example.net/resources", Valid: true},
+				Status:    status,
+				CreatedAt: time.Date(2026, time.November, 20, 12, 0, 0, 0, time.UTC),
+			},
+		}
+		for _, input := range visitInputs {
+			_, err := tx.ExecContext(ctx, `INSERT INTO link_visits(link_id, ip, user_agent, referer, status, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`, input.LinkID, input.Ip, input.UserAgent, input.Referer, input.Status, input.CreatedAt)
+			if err != nil {
+				t.Fatalf("insert link visit error: %v\n", err)
+			}
+		}
+		cases := []struct {
+			name          string
+			offset, limit int32
+			want          []linkVisit
+		}{
+			{"[0,2]", 0, 2, []linkVisit{visitInputs[2], visitInputs[1]}},
+			{"[1,2]", 1, 1, []linkVisit{visitInputs[1]}},
+			{"[2,4]", 2, 2, []linkVisit{visitInputs[0]}},
+			{"[3,5]", 3, 2, []linkVisit{}},
+		}
+		for _, c := range cases {
+			t.Run(c.name, func(t *testing.T) {
+				linkVisits, err := q.GetLinkVisitsPage(ctx, GetLinkVisitsPageParams{Offset: c.offset, Limit: c.limit})
+				require.NoError(t, err)
+				require.Len(t, linkVisits, len(c.want))
+				for i := range linkVisits {
+					assert.Equal(t, c.want[i].Ip, linkVisits[i].Ip)
+				}
+			})
+		}
 	})
 }

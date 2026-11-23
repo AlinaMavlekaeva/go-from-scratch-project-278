@@ -59,7 +59,7 @@ func generateShortURL(shortName string) (string, error) {
 	if baseURL == "" {
 		return "", ErrEmptyBaseURL
 	}
-	shortURL := baseURL + "/" + shortName
+	shortURL := baseURL + "/r/" + shortName
 	return shortURL, nil
 }
 
@@ -142,6 +142,21 @@ func GetLinkByID(ctx context.Context, conn db.DBTX, id int64) (db.GetLinkByIDRow
 	return link, nil
 }
 
+func GetLinkByShortName(ctx context.Context, conn db.DBTX, shortName string) (db.GetLinkByShortNameRow, error) {
+	if shortName == "" {
+		return db.GetLinkByShortNameRow{}, fmt.Errorf("get link error: %w", ErrEmptyShortName)
+	}
+	q := db.New(conn)
+	link, err := q.GetLinkByShortName(ctx, shortName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return db.GetLinkByShortNameRow{}, fmt.Errorf("get link error: %w", ErrNotFound)
+		}
+		return db.GetLinkByShortNameRow{}, fmt.Errorf("get link error: %w", err)
+	}
+	return link, nil
+}
+
 func DeleteLink(ctx context.Context, conn db.DBTX, id int64) error {
 	if id <= 0 {
 		return fmt.Errorf("delete link error: %w", ErrInvalidID)
@@ -152,4 +167,26 @@ func DeleteLink(ctx context.Context, conn db.DBTX, id int64) error {
 		return fmt.Errorf("delete link error: %w", err)
 	}
 	return nil
+}
+
+func GetLinkVisits(ctx context.Context, conn db.DBTX) ([]db.GetLinkVisitsRow, error) {
+	q := db.New(conn)
+	linkVisits, err := q.GetLinkVisits(ctx)
+	return linkVisits, err
+}
+
+func GetLinkVisitsPage(ctx context.Context, conn db.DBTX, limit int, offset int) ([]db.GetLinkVisitsPageRow, int64, error) {
+	q := db.New(conn)
+	linkVisits, err := q.GetLinkVisitsPage(ctx, db.GetLinkVisitsPageParams{Offset: int32(offset), Limit: int32(limit)})
+	if err != nil {
+		return []db.GetLinkVisitsPageRow{}, 0, err
+	}
+	count, err := q.CountLinkVisits(ctx)
+	return linkVisits, count, err
+}
+
+func CreateLinkVisit(ctx context.Context, conn db.DBTX, params db.CreateLinkVisitParams) (db.CreateLinkVisitRow, error) {
+	q := db.New(conn)
+	linkVisit, err := q.CreateLinkVisit(ctx, db.CreateLinkVisitParams{LinkID: params.LinkID, Ip: params.Ip, UserAgent: params.UserAgent, Referer: params.Referer, Status: params.Status})
+	return linkVisit, err
 }
