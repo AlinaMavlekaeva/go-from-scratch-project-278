@@ -44,7 +44,7 @@ SET original_url = sqlc.arg(original_url),
 WHERE id = sqlc.arg(id)
 RETURNING id, original_url, short_name, short_url;
 
--- name: DeleteLink :exec
+-- name: DeleteLink :execrows
 DELETE FROM links WHERE id = $1;
 
 -- name: CreateLinkVisit :one

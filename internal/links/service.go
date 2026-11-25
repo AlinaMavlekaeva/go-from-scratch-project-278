@@ -155,9 +155,12 @@ func DeleteLink(ctx context.Context, conn db.DBTX, id int64) error {
 		return fmt.Errorf("delete link error: %w", ErrInvalidID)
 	}
 	q := db.New(conn)
-	err := q.DeleteLink(ctx, id)
+	deleted, err := q.DeleteLink(ctx, id)
 	if err != nil {
 		return fmt.Errorf("delete link error: %w", err)
+	}
+	if deleted == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

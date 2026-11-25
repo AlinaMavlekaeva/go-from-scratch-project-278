@@ -253,6 +253,10 @@ func (h *LinkHandler) DeleteLink(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		if errors.Is(err, links.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
 		fmt.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return

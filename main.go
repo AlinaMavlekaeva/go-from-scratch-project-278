@@ -19,6 +19,10 @@ import (
 
 func setupRouter(conn *sql.DB) *gin.Engine {
 	router := gin.Default()
+	if err := router.SetTrustedProxies([]string{"127.0.0.1", "::1"}); err != nil {
+		panic(fmt.Errorf("configure trusted proxies: %w", err))
+	}
+	router.TrustedPlatform = gin.PlatformCloudflare
 	router.Use(sentrygin.New(sentrygin.Options{
 		Repanic: true,
 	}))
@@ -33,7 +37,7 @@ func setupRouter(conn *sql.DB) *gin.Engine {
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
-	router.TrustedPlatform = gin.PlatformCloudflare
+
 	h := handlers.New(conn)
 	router.GET("/api/links", h.GetLinks)
 	router.POST("/api/links", h.CreateLink)

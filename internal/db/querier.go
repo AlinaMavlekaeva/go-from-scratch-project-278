@@ -13,7 +13,7 @@ type Querier interface {
 	CountLinks(ctx context.Context) (int64, error)
 	CreateLink(ctx context.Context, arg CreateLinkParams) (CreateLinkRow, error)
 	CreateLinkVisit(ctx context.Context, arg CreateLinkVisitParams) (CreateLinkVisitRow, error)
-	DeleteLink(ctx context.Context, id int64) error
+	DeleteLink(ctx context.Context, id int64) (int64, error)
 	GetLinkByID(ctx context.Context, id int64) (GetLinkByIDRow, error)
 	GetLinkByShortName(ctx context.Context, shortName string) (GetLinkByShortNameRow, error)
 	GetLinkVisits(ctx context.Context) ([]GetLinkVisitsRow, error)

@@ -313,12 +313,17 @@ func TestDeleteLink(t *testing.T) {
 		if err != nil {
 			t.Fatalf("insert link error: %v\n", err)
 		}
-		err = q.DeleteLink(ctx, id)
+		_, err = q.DeleteLink(ctx, id)
 		if err != nil {
 			t.Fatalf("unexpected delete link error: %v\n", err)
 		}
 		err = tx.QueryRowContext(ctx, `SELECT id FROM links WHERE id = $1`, id).Scan(&id)
 		assert.ErrorIs(t, err, sql.ErrNoRows)
+		deleted, err := q.DeleteLink(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected delete link error: %v\n", err)
+		}
+		assert.Equal(t, 0, deleted)
 	})
 }
 
