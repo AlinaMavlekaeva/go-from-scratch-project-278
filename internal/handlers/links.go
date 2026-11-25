@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type LinkHandler struct {
@@ -23,15 +24,15 @@ func New(conn *sql.DB) *LinkHandler {
 }
 
 type (
-	CreateLinkRequest struct {
-		OriginalUrl string `json:"original_url"`
-		ShortName   string `json:"short_name"`
+	CreateLinkPayload struct {
+		OriginalUrl string `json:"original_url" binding:"required,url"`
+		ShortName   string `json:"short_name" binding:"omitempty,min=3,max=32"`
 	}
 
-	UpdateLinkRequest struct {
+	UpdateLinkPayload struct {
 		ID          int64  `json:"id"`
-		OriginalUrl string `json:"original_url"`
-		ShortName   string `json:"short_name"`
+		OriginalUrl string `json:"original_url" binding:"required,url"`
+		ShortName   string `json:"short_name" binding:"omitempty,min=3,max=32"`
 	}
 
 	LinkResponse struct {
@@ -52,17 +53,31 @@ type (
 )
 
 func (h *LinkHandler) CreateLink(c *gin.Context) {
-	var req CreateLinkRequest
+	var req CreateLinkPayload
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		var validationErrs validator.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			fields := make(map[string]string)
+			for _, fieldErr := range validationErrs {
+				switch fieldErr.StructField() {
+				case "OriginalUrl":
+					fields["original_url"] = fieldErr.Error()
+				case "ShortName":
+					fields["short_name"] = fieldErr.Error()
+				}
+			}
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": fields})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 	ctx := c.Request.Context()
 	conn := h.DB
 	link, err := links.CreateLink(ctx, conn, links.CreateLinkParams(req))
 	if err != nil {
-		if errors.Is(err, links.ErrValidate) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if errors.Is(err, links.ErrShortNameConflict) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": gin.H{"short_name": links.ErrShortNameConflict.Error()}})
 			return
 		}
 		fmt.Println(err)
@@ -73,9 +88,23 @@ func (h *LinkHandler) CreateLink(c *gin.Context) {
 }
 
 func (h *LinkHandler) UpdateLinkByID(c *gin.Context) {
-	var req UpdateLinkRequest
+	var req UpdateLinkPayload
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		var validationErrs validator.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			fields := make(map[string]string)
+			for _, fieldErr := range validationErrs {
+				switch fieldErr.StructField() {
+				case "OriginalUrl":
+					fields["original_url"] = fieldErr.Error()
+				case "ShortName":
+					fields["short_name"] = fieldErr.Error()
+				}
+			}
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": fields})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
@@ -88,12 +117,16 @@ func (h *LinkHandler) UpdateLinkByID(c *gin.Context) {
 	conn := h.DB
 	link, err := links.UpdateLinkByID(ctx, conn, links.UpdateLinkParams(req))
 	if err != nil {
-		if errors.Is(err, links.ErrValidate) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if errors.Is(err, links.ErrInvalidID) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": gin.H{"id": links.ErrInvalidID.Error()}})
 			return
 		}
 		if errors.Is(err, links.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, links.ErrShortNameConflict) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": gin.H{"short_name": links.ErrShortNameConflict.Error()}})
 			return
 		}
 		fmt.Println(err)

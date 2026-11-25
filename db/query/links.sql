@@ -31,10 +31,17 @@ SELECT id, original_url, short_name, short_url
 FROM links WHERE short_name = $1;
 
 -- name: UpdateLinkByID :one
-UPDATE links SET original_url = $2,
-short_name = $3,
-short_url = $4
-WHERE id = $1
+UPDATE links
+SET original_url = sqlc.arg(original_url),
+    short_name = CASE
+        WHEN sqlc.arg(short_name)::text = '' THEN links.short_name
+        ELSE sqlc.arg(short_name)::text
+    END,
+    short_url = CASE
+        WHEN sqlc.arg(short_name)::text = '' THEN links.short_url
+        ELSE sqlc.arg(short_url)::text
+    END
+WHERE id = sqlc.arg(id)
 RETURNING id, original_url, short_name, short_url;
 
 -- name: DeleteLink :exec

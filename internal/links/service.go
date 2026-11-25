@@ -8,8 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net/url"
 	"os"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -35,23 +36,6 @@ type UpdateLinkParams struct {
 	ID          int64
 	OriginalUrl string
 	ShortName   string
-}
-
-func validateURL(rawURL string) error {
-	if rawURL != "" {
-		parsed, err := url.Parse(rawURL)
-		if err != nil {
-			return fmt.Errorf("invalid URL: %w", err)
-		}
-		if parsed.Scheme != "http" && parsed.Scheme != "https" {
-			return fmt.Errorf("invalid URL: %w", ErrUnsupportScheme)
-		}
-		if parsed.Hostname() != "" {
-			return nil
-		}
-		return fmt.Errorf("invalid URL: %w", ErrEmptyHostname)
-	}
-	return fmt.Errorf("invalid URL: %w", ErrEmptyURL)
 }
 
 func generateShortURL(shortName string) (string, error) {
@@ -80,9 +64,6 @@ func GetLinksPage(ctx context.Context, conn db.DBTX, limit int, offset int) ([]d
 }
 
 func CreateLink(ctx context.Context, conn db.DBTX, params CreateLinkParams) (db.CreateLinkRow, error) {
-	if err := validateURL(params.OriginalUrl); err != nil {
-		return db.CreateLinkRow{}, fmt.Errorf("create link error: %w", errors.Join(ErrValidate, err))
-	}
 	if params.ShortName == "" {
 		name, err := generateName10()
 		if err != nil {
@@ -96,31 +77,43 @@ func CreateLink(ctx context.Context, conn db.DBTX, params CreateLinkParams) (db.
 	}
 	q := db.New(conn)
 	link, err := q.CreateLink(ctx, db.CreateLinkParams{OriginalUrl: params.OriginalUrl, ShortName: params.ShortName, ShortUrl: shortURL})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) &&
+			pgErr.Code == "23505" &&
+			pgErr.ConstraintName == "links_short_name_key" {
+			return db.CreateLinkRow{}, ErrShortNameConflict
+		}
+	}
 	return link, err
 }
 
 func UpdateLinkByID(ctx context.Context, conn db.DBTX, params UpdateLinkParams) (db.UpdateLinkByIDRow, error) {
 	if params.ID <= 0 {
-		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", errors.Join(ErrValidate, ErrInvalidID))
-	}
-	if err := validateURL(params.OriginalUrl); err != nil {
-		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", errors.Join(ErrValidate, err))
-	}
-	if params.ShortName == "" {
-		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", ErrEmptyShortName)
-	}
-	shortURL, err := generateShortURL(params.ShortName)
-	if err != nil {
-		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", err)
+		return db.UpdateLinkByIDRow{}, ErrInvalidID
 	}
 	q := db.New(conn)
+	var shortUrl string
+	if params.ShortName != "" {
+		var err error
+		shortUrl, err = generateShortURL(params.ShortName)
+		if err != nil {
+			return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", err)
+		}
+	}
 	link, err := q.UpdateLinkByID(ctx, db.UpdateLinkByIDParams{ID: params.ID,
 		OriginalUrl: params.OriginalUrl,
 		ShortName:   params.ShortName,
-		ShortUrl:    shortURL})
+		ShortUrl:    shortUrl})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", ErrNotFound)
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) &&
+			pgErr.Code == "23505" &&
+			pgErr.ConstraintName == "links_short_name_key" {
+			return db.UpdateLinkByIDRow{}, ErrShortNameConflict
 		}
 		return db.UpdateLinkByIDRow{}, fmt.Errorf("update link error: %w", err)
 	}

@@ -365,18 +365,25 @@ func (q *Queries) GetLinksPage(ctx context.Context, arg GetLinksPageParams) ([]G
 }
 
 const updateLinkByID = `-- name: UpdateLinkByID :one
-UPDATE links SET original_url = $2,
-short_name = $3,
-short_url = $4
-WHERE id = $1
+UPDATE links
+SET original_url = $1,
+    short_name = CASE
+        WHEN $2::text = '' THEN links.short_name
+        ELSE $2::text
+    END,
+    short_url = CASE
+        WHEN $2::text = '' THEN links.short_url
+        ELSE $3::text
+    END
+WHERE id = $4
 RETURNING id, original_url, short_name, short_url
 `
 
 type UpdateLinkByIDParams struct {
-	ID          int64
 	OriginalUrl string
 	ShortName   string
 	ShortUrl    string
+	ID          int64
 }
 
 type UpdateLinkByIDRow struct {
@@ -388,10 +395,10 @@ type UpdateLinkByIDRow struct {
 
 func (q *Queries) UpdateLinkByID(ctx context.Context, arg UpdateLinkByIDParams) (UpdateLinkByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, updateLinkByID,
-		arg.ID,
 		arg.OriginalUrl,
 		arg.ShortName,
 		arg.ShortUrl,
+		arg.ID,
 	)
 	var i UpdateLinkByIDRow
 	err := row.Scan(
