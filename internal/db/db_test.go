@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/pressly/goose/v3"
@@ -242,6 +243,33 @@ func TestCreateLink(t *testing.T) {
 	})
 }
 
+func TestCreateLinkUniqueError(t *testing.T) {
+	WithTx(t, conn, func(ctx context.Context, q *Queries, _ *sql.Tx) {
+		input := link{
+			OriginalUrl: "https://example.com/articles/go-testing",
+			ShortName:   "go-tests",
+			ShortUrl:    "http://localhost:8080/go-tests",
+		}
+		_, err := q.CreateLink(ctx, CreateLinkParams{
+			OriginalUrl: input.OriginalUrl,
+			ShortName:   input.ShortName,
+			ShortUrl:    input.ShortUrl,
+		})
+		if err != nil {
+			t.Fatalf("unexpected create link error: %v\n", err)
+		}
+		_, err = q.CreateLink(ctx, CreateLinkParams{
+			OriginalUrl: input.OriginalUrl,
+			ShortName:   input.ShortName,
+			ShortUrl:    input.ShortUrl,
+		})
+		var pgErr *pgconn.PgError
+		require.ErrorAs(t, err, &pgErr)
+		assert.Equal(t, "23505", pgErr.Code)
+		assert.Equal(t, "links_short_name_key", pgErr.ConstraintName)
+	})
+}
+
 func TestGetLinkByID(t *testing.T) {
 	WithTx(t, conn, func(ctx context.Context, q *Queries, tx *sql.Tx) {
 		input := link{
@@ -297,6 +325,43 @@ func TestUpdateLinkByID(t *testing.T) {
 		assert.Equal(t, updateInput.OriginalUrl, link.OriginalUrl)
 		assert.Equal(t, updateInput.ShortName, link.ShortName)
 		assert.Equal(t, updateInput.ShortUrl, link.ShortUrl)
+	})
+}
+
+func TestUpdateLinkByIDUniqueError(t *testing.T) {
+	WithTx(t, conn, func(ctx context.Context, q *Queries, tx *sql.Tx) {
+		input1 := link{
+			OriginalUrl: "https://example.com/articles/go-basics",
+			ShortName:   "go-basics",
+			ShortUrl:    "http://localhost:8080/go-basics",
+		}
+		input2 := link{
+			OriginalUrl: "https://example.org/guides/postgresql",
+			ShortName:   "postgres-guide",
+			ShortUrl:    "http://localhost:8080/postgres-guide",
+		}
+		var id int64
+		_, err := tx.ExecContext(ctx, `INSERT INTO links (original_url, short_name, short_url)
+		VALUES ($1, $2, $3) RETURNING id`, input1.OriginalUrl, input1.ShortName, input1.ShortUrl)
+
+		err = tx.QueryRowContext(ctx, `INSERT INTO links (original_url, short_name, short_url)
+		VALUES ($1, $2, $3) RETURNING id`, input2.OriginalUrl, input2.ShortName, input2.ShortUrl).Scan(&id)
+
+		updateInput2 := link{
+			OriginalUrl: "https://example.com/articles/go-advanced",
+			ShortName:   "go-basics",
+			ShortUrl:    "http://localhost:8080/go-advanced",
+		}
+		_, err = q.UpdateLinkByID(ctx, UpdateLinkByIDParams{
+			ID:          id,
+			OriginalUrl: updateInput2.OriginalUrl,
+			ShortName:   updateInput2.ShortName,
+			ShortUrl:    updateInput2.ShortUrl,
+		})
+		var pgErr *pgconn.PgError
+		require.ErrorAs(t, err, &pgErr)
+		assert.Equal(t, "23505", pgErr.Code)
+		assert.Equal(t, "links_short_name_key", pgErr.ConstraintName)
 	})
 }
 
